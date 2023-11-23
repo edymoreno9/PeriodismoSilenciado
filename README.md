@@ -3,4 +3,4 @@ Proyecto de Investigación sobre el fenómeno del asesinato de periodistas en M�
 
 ## Documentos
 
-1. Análisis de ruido preeliminar de la base de datos principal
+1. Análisis de ruido preeliminar de la base de datos principal: https://edymoreno9.github.io/PeriodismoSilenciado/
