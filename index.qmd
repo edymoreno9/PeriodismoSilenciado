@@ -1,0 +1,422 @@
+---
+title: "Periodismo Silenciado"
+subtitle: "Cobertura y expresiones sobre hitos en Facebook del Enero 2014 - Diciembre 2023"
+format: html
+title-block-banner: "#f0f3f5"
+title-block-banner-color: "black"
+---
+
+```{r set_up, include = FALSE, warning=FALSE}
+
+# Cargar librerías
+library(tidyverse)
+library(lubridate)
+library(grid)
+library(gridExtra)
+library(kableExtra)
+library(readxl)
+library(knitr)
+library(plotly)
+library(hrbrthemes)
+library(DT)
+
+# Cargar las bases de datos de la carpeta ~/periodismosilenciado/CoberturayExpresiones/datos
+db_publicaciones_final <- read_csv( # Publicaciones finales
+  "~/periodismosilenciado/CoberturayExpresiones/datos/db_publicaciones_final.csv"
+)
+
+db_hitos <- read_csv( # Hitos
+  "~/periodismosilenciado/CoberturayExpresiones/datos/db_hitos.csv"
+)
+
+db_paginas <- read_csv( # Páginas
+  "~/periodismosilenciado/CoberturayExpresiones/datos/db_paginas.csv"
+)
+
+db_periodistas_menciones <- read_csv( # Menciones de periodistas
+  "~/periodismosilenciado/CoberturayExpresiones/datos/db_periodistas_menciones.csv"
+)
+
+```
+
+## Base de Datos
+
+::: {.panel-tabset .nav-pills}
+
+## Periodistas Asesinadas en México (Artículo 19): 86
+
+```{r base_de_datos_de_periodistas_asesinados, echo = FALSE, warning = FALSE, message = FALSE,}
+
+db_hitos |>
+  select(-Fecha) |>
+  datatable(options = list(pageLength = 10))
+
+```
+
+## Publicaciones de Páginas de Facebook: 35,425 
+
+```{r base_de_datos_de_pulicaciones_de_Facebook, echo = FALSE, warning = FALSE, message = FALSE}
+
+db_publicaciones_final |>
+  slice_sample(n = 300) |>
+  select(-c(`User Name`, `Facebook Id`, `Page Category`)) |>
+  datatable(options = list(pageLength = 6))
+
+```
+
+:::
+
+## Frecuencias
+
+::: {.panel-tabset .nav-pills}
+
+## Publicaciones Diarias
+
+```{r grafica_01, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Contar las frecuencias de publicaciones por fecha de la columna 'Post Created Date'
+db_frecuencias_publicaciones <- db_publicaciones_final |>
+  group_by(`Post Created Date`) |> 
+  summarise(publicaciones_diarias = n()) |>
+  complete(`Post Created Date` = seq(min(`Post Created Date`), 
+                                     max(`Post Created Date`), 
+                                     by = "1 day"), fill = list(publicaciones_diarias = 0))
+
+# Calcular promedio de frecuencias de publicaciones histórico 2014-2023
+promedio_publicaciones_diarias <- mean(db_frecuencias_publicaciones$publicaciones_diarias, na.rm = TRUE)
+
+# Calcular promedios de frecuencias de publicaciones anuales 2014-2023
+años <- 2014:2023 # Años
+list_promedio_publicaciones_anuales <- lapply(años, function(y) {
+  mean(db_frecuencias_publicaciones$publicaciones_diarias[year(db_frecuencias_publicaciones$`Post Created Date`) == y], na.rm = TRUE)
+})
+
+promedio_publicaciones_anuales <- setNames(unlist(list_promedio_publicaciones_anuales), años) # Quitar valores de lista
+
+rm(list_promedio_publicaciones_anuales) # Quitar lista con los promedios anuales
+
+db_frecuencias_publicaciones <- db_frecuencias_publicaciones |> # Añadir promedios mensuales y anuales a la bd de frecuencias
+  mutate(promedio_por_mes = ave(publicaciones_diarias, format(`Post Created Date`, "%Y-%m"), FUN = mean, na.rm = TRUE)) |>
+  mutate(promedio_por_año = ave(publicaciones_diarias, format(`Post Created Date`, "%Y"), FUN = mean, na.rm = TRUE)) 
+
+# Fechas de asesinatos de MEF y AL
+fechas_asesinatos_MEFyAL <- as.Date(c("2020-03-30", "2022-03-15")) # Maria Elena Ferral y Armando Linares
+
+# Gráfica de frecuencia de publicaciones con promedios (grafica_01)
+grafica_01 <- ggplot(data = db_frecuencias_publicaciones, aes(x = `Post Created Date`)) + 
+  geom_line(aes(y = publicaciones_diarias), color = "lightcoral", size = 0.75) +
+  geom_line(aes(y = promedio_por_mes), color = "darkred", size = 0.75) +
+  geom_line(aes(y = promedio_por_año), color = "dimgray", size = 0.75) +
+  geom_hline(yintercept = promedio_publicaciones_diarias, color = "black", linetype = "dashed", size = 0.5) +
+  geom_vline(xintercept = fechas_asesinatos_MEFyAL, color = "red", linetype = "dashed", size = 0.25) +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months") +
+  labs(
+    title = "Frecuencia de Publicaciones Diarias Mencionando 'Periodista Asesinada/o'",
+    subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+    x = "Fecha",
+    y = "",
+    caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) +
+  annotate("text", x = as.Date("2014-06-15"), y = 770, label = paste("Promedio histórico:", 
+                                                                     round(promedio_publicaciones_diarias, 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2014-06-01"), y = 920, label = "Publicaciones diarias", hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2014-06-01"), y = 870, label = "Promedio mensual", hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2014-06-01"), y = 820, label = "Promedio anual", hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2014-01-05"), y = 90, label = paste("Prom. 2014:", round(promedio_publicaciones_anuales[["2014"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2015-01-05"), y = 250, label = paste("Prom. 2015:", round(promedio_publicaciones_anuales[["2015"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2016-01-05"), y = 160, label = paste("Prom. 2016:", round(promedio_publicaciones_anuales[["2016"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2017-01-05"), y = 470, label = paste("Prom. 2017:", round(promedio_publicaciones_anuales[["2017"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2018-01-05"), y = 220, label = paste("Prom. 2018:", round(promedio_publicaciones_anuales[["2018"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2019-01-05"), y = 280, label = paste("Prom. 2019:", round(promedio_publicaciones_anuales[["2019"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2020-01-05"), y = 180, label = paste("Prom. 2020:", round(promedio_publicaciones_anuales[["2020"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2021-01-05"), y = 250, label = paste("Prom. 2021:", round(promedio_publicaciones_anuales[["2021"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2022-01-05"), y = 550, label = paste("Prom. 2022:", round(promedio_publicaciones_anuales[["2022"]], 2)), hjust = 0, size = 3) +
+  annotate("text", x = as.Date("2023-01-05"), y = 320, label = paste("Prom. 2023:", round(promedio_publicaciones_anuales[["2023"]], 2)), hjust = 0, size = 3) +
+  geom_segment(aes(x = as.Date("2016-01-01"), y = 920, xend = as.Date("2016-05-01"), yend = 920), color = "lightcoral", size = 0.75) +
+  geom_segment(aes(x = as.Date("2016-01-01"), y = 870, xend = as.Date("2016-05-01"), yend = 870), color = "darkred", size = 0.75) +
+  geom_segment(aes(x = as.Date("2016-01-01"), y = 820, xend = as.Date("2016-05-01"), yend = 820), color = "dimgray", size = 0.75) +
+  geom_segment(aes(x = as.Date("2016-01-01"), y = 770, xend = as.Date("2016-05-01"), yend = 770), color = "black", linetype = "dashed", size = 0.75) +
+  theme_bw() + 
+  theme(
+    plot.title = element_text(size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    plot.caption = element_text(size = 8, hjust = 0),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) 
+
+# Turn it interactive with ggplotly
+grafica_01 <- ggplotly(grafica_01)
+grafica_01
+
+```
+
+## Publicaciones e Hitos
+
+```{r grafica_02, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Fechas de los hitos
+fechas_asesinatos<- db_hitos$Fecha
+
+# Gráfica de frecuencia de publicaciones con los 86 hitos (grafica_02)
+grafica_02 <- ggplot(data = db_frecuencias_publicaciones, aes(x = `Post Created Date`)) + 
+  geom_line(aes(y = publicaciones_diarias), color = "darkturquoise", size = 0.75) +
+  geom_segment(data = data.frame(x = as.Date(fechas_asesinatos)), aes(x = x, xend = x, y = 0, yend = 1000),
+               color = "indianred", linetype = "dashed", size = 0.25) +
+  annotate("text", x = as.Date("2023-01-01"), y = 900, label = "Hitos (86)", color = "indianred", hjust = 0, size = 2.5) +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months") +
+  labs(
+    title = "Frecuencia de Publicaciones Diarias e Hitos",
+    subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+    x = "Fecha",
+    y = "",
+    caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) +
+  theme_bw() + 
+  theme(
+    plot.title = element_text(size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    plot.caption = element_text(size = 8, hjust = 0),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) 
+
+# Turn it interactive with ggplotly
+grafica_02 <- ggplotly(grafica_02)
+grafica_02
+
+```
+
+## Supercategorías
+
+```{r grafica_05, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Contar las frecuencias de publicaciones mensuales por supercategoría
+db_frecuencias_sc_mensuales <- db_publicaciones_final |>
+  group_by(Supercategory, `Post Created Date`) |> 
+  summarise(publicaciones_diarias = n()) |>
+  complete(`Post Created Date` = seq(as.Date("2014-01-01"), # Completar fehcas faltantes con 0
+                                     as.Date("2023-12-31"), 
+                                     by = "1 day"), fill = list(publicaciones_diarias = 0)) |>
+  ungroup() |>
+  mutate(mes = format(`Post Created Date`, "%Y-%m")) |> 
+  group_by(Supercategory, mes) |>
+  summarise(publicaciones_mensuales = sum(publicaciones_diarias)) |>
+  ungroup() |>
+  mutate(mes = as.Date(paste0(mes, "-01"))) |>
+  mutate(publicaciones_mensuales = ifelse(publicaciones_mensuales == 0, NA, publicaciones_mensuales))
+
+
+# Gráfica de líneas de frecuencias de publicaciones por supercategoría (grafica_05)
+grafica_05 <- ggplot(data = na.omit(db_frecuencias_sc_mensuales), aes(x = mes)) + 
+  geom_line(aes(y = publicaciones_mensuales, colour = Supercategory)) +
+  geom_vline(xintercept = as.Date(c("2014-01-01", "2015-01-01", "2016-01-01", "2017-01-01", "2018-01-01",
+                                    "2019-01-01", "2020-01-01", "2021-01-01", "2022-01-01", "2023-01-01", "2024-01-01")), color = "black", size = 0.25) +
+  scale_x_date(date_labels = "%b %y", date_breaks = "3 months") +
+  scale_y_log10() +
+  labs(
+    title = "Número de Publicaciones Mensuales de Páginas de Facebook por Supercategoría",
+    subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+    x = "Fecha",
+    y = "",
+    caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) +
+  theme_light() + 
+  theme(
+    plot.title = element_text(size = 12, hjust = 0.5, vjust = 9),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12), 
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+    legend.position = "bottom",
+    legend.justification = "left",
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  annotate('rect', xmin = as.Date("2015-01-01"), xmax = as.Date("2015-12-31"), 
+           ymin = 1, ymax = 2000, alpha = 0.5, fill = "grey") +
+  annotate('rect', xmin = as.Date("2018-01-01"), xmax = as.Date("2018-12-31"), 
+           ymin = 1, ymax = 2000, alpha = 0.5, fill = "grey") +
+  annotate('rect', xmin = as.Date("2021-01-01"), xmax = as.Date("2021-12-31"), 
+           ymin = 1, ymax = 2000, alpha = 0.5, fill = "grey") +
+  annotate("text", x = as.Date("2018-06-01"), y = 2800, label = paste("año"), size = 2.5) +
+  annotate("text", x = as.Date("2018-06-01"), y = 2300, label = paste("electoral"), size = 2.5) +
+  annotate("text", x = as.Date("2015-06-01"), y = 2800, label = paste("año"), size = 2.5) +
+  annotate("text", x = as.Date("2015-06-01"), y = 2300, label = paste("electoral"), size = 2.5) +
+  annotate("text", x = as.Date("2021-06-01"), y = 2800, label = paste("año"), size = 2.5) +
+  annotate("text", x = as.Date("2021-06-01"), y = 2300, label = paste("electoral"), size = 2.5)
+
+# Turn it interactive with ggplotly
+grafica_05 <- ggplotly(grafica_05) |>
+  layout(legend = list(orientation = "h", y = -0.3, yanchor = "top"))
+
+grafica_05
+
+```
+
+:::
+
+:::
+
+## Distribuciones
+
+::: {.panel-tabset .nav-pills}
+
+## Publicaciones por País
+
+```{r grafica_03, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Gráfico de barra de publicaciones por pais (grafica_03)
+grafica_03 <- db_publicaciones_final |> # Transformación de datos
+  group_by(`Page Admin Top Country`) |>
+  summarise(Count = n()) |>
+  arrange(desc(Count)) |>
+  mutate(pais = ifelse(rank(-Count, na.last = "keep") <= 25, `Page Admin Top Country`, "Otros")) |>
+  group_by(pais) |>
+  summarise(numero_publicaciones = sum(Count)) |>
+  arrange(desc(numero_publicaciones)) |>
+  mutate(porcentaje_publicaciones = (numero_publicaciones / nrow(db_publicaciones_final)) * 100,
+         publicaciones_acumuladas = cumsum(numero_publicaciones)) |>
+  mutate(porcentaje_acumulado = (publicaciones_acumuladas / nrow(db_publicaciones_final)) * 100) |>
+  replace_na(list(pais = "NA")) |>
+  ggplot(aes(x = reorder(pais, -numero_publicaciones), y = numero_publicaciones)) + # ggplot
+  geom_bar(color = "darkred", fill = "darkred", stat = "identity") +
+  labs(title = "Publicaciones de páginas de Facebook por País",
+       subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+       x = "País",
+       y = "Número de publicaciones",
+       caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) +
+  theme_bw() + 
+  theme(
+    plot.title = element_text(size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    plot.caption = element_text(size = 8, hjust = 0),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.x = element_text(angle = 0),
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+  )
+
+# Turn it interactive with ggplotly
+grafica_03 <- ggplotly(grafica_03)
+grafica_03
+
+```
+
+## Publicaciones por Supercategoría
+
+```{r grafica_04, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Creamos una base de datos de las publicaciones por supercategoría y país
+grafica_04 <- db_publicaciones_final |> # Transformación de datos
+  group_by(Supercategory, `Page Admin Top Country`) |>
+  summarise(count = n()) |>
+  ungroup() |>
+  arrange(Supercategory, -count) |>
+  mutate(`Page Admin Top Country` = coalesce(as.character(`Page Admin Top Country`), "NA")) |> 
+  mutate(`Page Admin Top Country` = factor(`Page Admin Top Country`, # Ajustar los niveles del factor
+                                           levels = c("NA", "ES", "US", "MX"))) |>
+  ggplot(aes(fill = `Page Admin Top Country`, y = reorder(Supercategory, count), x = count)) + # ggplot
+  geom_bar(position = "stack", stat = "identity") + 
+  labs(title = "Número de publicaciones de Facebook por Súpercategoría",
+       subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+       x = "",
+       y = "",
+       caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) +
+  theme_bw() + 
+  theme(
+    plot.title = element_text(size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text.x = element_text(angle = 0, vjust = 0.5),
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+    legend.position = "bottom",
+    legend.justification = "centre"
+  )  +
+  scale_fill_manual(values = c("MX" = "darkgreen", "US" = "darkblue", "ES" = "red", "NA" = "darkgrey"))
+
+# Turn it interactive with ggplotly
+grafica_04 <- ggplotly(grafica_04) |>
+  layout(legend = list(orientation = "h", y = -0.3, yanchor = "top"))
+grafica_04
+
+```
+
+:::
+
+## Menciones de Periodistas 
+
+```{r grafica_06, echo = FALSE, warning = FALSE, message = FALSE,  results = 'hold'}
+
+# Reemplazar NA en la columna pais
+db_periodistas_menciones <- db_periodistas_menciones |>
+  replace_na(list(pais = "NA"))
+
+# Crear un data frame con el número de menciones de periodistas por mes
+db_periodistas_menciones_mes <- db_periodistas_menciones |>
+  group_by(nombre_mencionado, mes) |>
+  summarise(n_menciones_mes = sum(n_menciones)) |>
+  ungroup() 
+
+# Preparación datos 
+db_periodistas_menciones_mes <- db_periodistas_menciones_mes |>
+  mutate(nombre_mencionado = factor(nombre_mencionado, levels = rev(unique(db_periodistas_menciones_mes$nombre_mencionado)))) |>
+  mutate(countfactor = cut(n_menciones_mes, 
+                           breaks = c(-1, 0, 1, 5, 10, 25, 50, 100, 200, 400, 600, max(n_menciones_mes, na.rm = TRUE)),
+                           labels = c("0", "1", "2-5", "6-10", "11-25", "26-50", "51-100", "101-200", "201-400", "401-600", "601+"))) |>
+  mutate(countfactor = factor(as.character(countfactor), levels = rev(levels(countfactor))))
+
+
+# assign text colour
+textcol <- "grey40"
+
+# Mapa de calor de las menciones de periodistas por mes
+grafica_06 <- ggplot(db_periodistas_menciones_mes, aes(x = mes, y = nombre_mencionado, fill = countfactor)) +
+  geom_tile(colour = "white", size = 0.25) + 
+  labs(
+    title = "Mapa de Calor de Menciones de Periodistas por Mes",
+    subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
+    x = "",
+    y = "",
+    caption = "Publicaciones de páginas de Facebook mencionando 'periodistas asesinadas/os', 'reportera/o asesinada/o', 'comunicador/a asesinado/a', 'fotoreportera/o asesinada/o', 'corresponsal asesinada/o'"
+  ) + 
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_x_date(expand=c(0, 0)) +
+  scale_fill_manual(values=c("#d53e4f", "#e75a48", "#f67a49", "#fba05b", "#fdc272", "#fee08b", "#f0ed93", "#daf09b", "#b7e2a2", "#c0e5ba", "#ddf1da" ), na.value = "grey90")+
+  theme_bw(base_size = 9) + 
+  theme(
+    legend.position="right", legend.direction="vertical",
+    legend.title=element_text(colour=textcol),
+    legend.margin=margin(grid::unit(0, "cm")),
+    plot.title = element_text(size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12), 
+    plot.caption = element_text(size = 8, hjust = 0),
+    plot.background=element_blank(),
+    panel.grid.major.x = element_blank(),  
+    panel.grid.minor.x = element_blank(),
+    panel.border = element_blank(),
+    legend.text=element_text(face="bold")
+  )
+
+grafica_06
+
+
+```
