@@ -375,7 +375,10 @@ db_periodistas_menciones_mes <- db_periodistas_menciones |>
   ungroup() 
 
 # Preparación datos 
-db_periodistas_menciones_mes <- db_periodistas_menciones_mes |>
+
+
+db_periodistas_menciones_mes_hito <- left_join(db_periodistas_menciones_mes, db_hitos, by = c("nombre_mencionado" = "NOMBRE")) |>
+  mutate(fecha_flor = floor_date(Fecha, "month")) |>
   mutate(nombre_mencionado = factor(nombre_mencionado, levels = rev(unique(db_periodistas_menciones_mes$nombre_mencionado)))) |>
   mutate(countfactor = cut(n_menciones_mes, 
                            breaks = c(-1, 0, 1, 5, 10, 25, 50, 100, 200, 400, 600, max(n_menciones_mes, na.rm = TRUE)),
@@ -383,12 +386,10 @@ db_periodistas_menciones_mes <- db_periodistas_menciones_mes |>
   mutate(countfactor = factor(as.character(countfactor), levels = rev(levels(countfactor))))
 
 
-# assign text colour
-textcol <- "grey40"
-
 # Mapa de calor de las menciones de periodistas por mes
-grafica_06 <- ggplot(db_periodistas_menciones_mes, aes(x = mes, y = nombre_mencionado, fill = countfactor)) +
+grafica_06 <- ggplot(db_periodistas_menciones_mes_hito, aes(x = mes, y = nombre_mencionado, fill = countfactor)) +
   geom_tile(colour = "white", size = 0.25) + 
+  geom_tile(data = subset(db_periodistas_menciones_mes_hito, !is.na(fecha_flor)), aes(x = fecha_flor, y = nombre_mencionado), colour = "black", size = 0.1) +
   labs(
     title = "Mapa de Calor de Menciones de Periodistas por Mes",
     subtitle = "Del 01 de enero del 2014 al 31 de diciembre del 2023",
@@ -398,11 +399,10 @@ grafica_06 <- ggplot(db_periodistas_menciones_mes, aes(x = mes, y = nombre_menci
   ) + 
   scale_y_discrete(expand = c(0, 0)) +
   scale_x_date(expand=c(0, 0)) +
-  scale_fill_manual(values=c("#d53e4f", "#e75a48", "#f67a49", "#fba05b", "#fdc272", "#fee08b", "#f0ed93", "#daf09b", "#b7e2a2", "#c0e5ba", "#ddf1da" ), na.value = "grey90")+
+  scale_fill_manual(values=c("#d53e4f", "#e75a48", "#f67a49", "#fba05b", "#fdc272", "#fee08b", "#f0ed93", "#daf09b", "#b7e2a2", "#c0e5ba", "#EAF7E8" ), na.value = "grey90")+
   theme_bw(base_size = 9) + 
   theme(
     legend.position="right", legend.direction="vertical",
-    legend.title=element_text(colour=textcol),
     legend.margin=margin(grid::unit(0, "cm")),
     plot.title = element_text(size = 12, hjust = 0.5),
     plot.subtitle = element_text(size = 12, hjust = 0.5),
@@ -412,10 +412,12 @@ grafica_06 <- ggplot(db_periodistas_menciones_mes, aes(x = mes, y = nombre_menci
     plot.background=element_blank(),
     panel.grid.major.x = element_blank(),  
     panel.grid.minor.x = element_blank(),
-    panel.border = element_blank(),
-    legend.text=element_text(face="bold")
+    panel.border = element_blank()
   )
 
+# Turn it interactive with ggplotly
+grafica_06 <- ggplotly(grafica_06) |>
+  layout(legend = list(orientation = "h", y = -0.3, yanchor = "top"))
 grafica_06
 
 
